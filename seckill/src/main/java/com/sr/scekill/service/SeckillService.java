@@ -48,11 +48,10 @@ public class SeckillService {
     }
 
 
-    // 客户端抢代金券
-    public ResultInfo doSeckill(Integer voucherId, String accessToken, String path) {
+    // 客户端抢代金券（基于数据库）
+    public ResultInfo doSeckillOfMySQL(Integer voucherId, int userId, String path) {
         // 基本参数校验
         AssertUtil.isTrue(voucherId == null || voucherId < 0, "请选择需要抢购的代金券");
-        AssertUtil.isNotEmpty(accessToken, "请登录");
         // 判断此代金券是否加入抢购
         SeckillVouchers seckillVouchers = seckillVouchersMapper.selectVoucher(voucherId);
         AssertUtil.isTrue(seckillVouchers == null, "该代金券并未有抢购活动");
@@ -64,14 +63,8 @@ public class SeckillService {
         AssertUtil.isTrue(now.after(seckillVouchers.getEndTime()), "该抢购已结束");
         // 判断是否卖完
         AssertUtil.isTrue(seckillVouchers.getAmount() < 1, "该券已经卖完了");
-        // 获取登录用户信息
-        // String url = oauthServerName + "user/me?access_token={accessToken}";
-        ResultInfo resultInfo = null;
-        // 这里的data是一个LinkedHashMap，SignInDinerInfo
-        SignInDinerInfo dinerInfo = BeanUtil.fillBeanWithMap((LinkedHashMap) resultInfo.getData(),
-                new SignInDinerInfo(), false);
         // 判断登录用户是否已抢到(一个用户针对这次活动只能买一次)
-        VoucherOrders order = voucherOrdersMapper.findDinerOrder(dinerInfo.getId(),
+        VoucherOrders order = voucherOrdersMapper.findDinerOrder(userId,
                 seckillVouchers.getId());
         AssertUtil.isTrue(order != null, "该用户已抢到该代金券，无需再抢");
         // 扣库存
@@ -79,7 +72,7 @@ public class SeckillService {
         AssertUtil.isTrue(count == 0, "该券已经卖完了");
         // 下单
         VoucherOrders voucherOrders = new VoucherOrders();
-        voucherOrders.setFkDinerId(dinerInfo.getId());
+        voucherOrders.setFkDinerId(userId);
         voucherOrders.setFkSeckillId(seckillVouchers.getId());
         voucherOrders.setFkVoucherId(seckillVouchers.getFkVoucherId());
         String orderNo = IdUtil.getSnowflake(1, 1).nextIdStr();
@@ -88,7 +81,6 @@ public class SeckillService {
         voucherOrders.setStatus(0);
         count = voucherOrdersMapper.save(voucherOrders);
         AssertUtil.isTrue(count == 0, "用户抢购失败");
-
         return ResultInfoUtil.buildSuccess(path, "抢购成功");
     }
 
