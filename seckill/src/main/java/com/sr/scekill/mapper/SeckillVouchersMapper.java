@@ -2,7 +2,6 @@ package com.sr.scekill.mapper;
 
 import com.sr.commons.model.pojo.SeckillVouchers;
 import org.apache.ibatis.annotations.*;
-import org.springframework.web.bind.annotation.PostMapping;
 
 /**
  * 秒杀代金券 Mapper
