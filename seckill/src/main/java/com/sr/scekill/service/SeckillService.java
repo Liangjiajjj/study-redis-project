@@ -2,7 +2,6 @@ package com.sr.scekill.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.IdUtil;
-import cn.hutool.core.util.StrUtil;
 import com.sr.commons.constant.RedisKeyConstant;
 import com.sr.commons.model.domain.ResultInfo;
 import com.sr.commons.model.pojo.SeckillVouchers;
@@ -11,39 +10,39 @@ import com.sr.commons.utils.AssertUtil;
 import com.sr.commons.utils.ResultInfoUtil;
 import com.sr.scekill.mapper.SeckillVouchersMapper;
 import com.sr.scekill.mapper.VoucherOrdersMapper;
-import com.sr.scekill.model.RedisLock;
 import org.redisson.api.RLock;
 import org.redisson.api.RMap;
+import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
-import org.springframework.context.annotation.Bean;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.interceptor.TransactionAspectSupport;
-
 import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 @Service
 public class SeckillService {
 
-    @Resource
-    DefaultRedisScript defaultRedisScript;
+    // 扣库存脚本
+    private static final String STOCK_SCRIPT =
+            "if (redis.call('hexists', KEYS[1], KEYS[2]) == 1) then\n" +
+                    "local stock = tonumber(redis.call('hget', KEYS[1], KEYS[2]));\n" +
+                    "if (stock > 0) then\n" +
+                    " redis.call('hincrby', KEYS[1], KEYS[2], -1);\n" +
+                    "return stock;\n" +
+                    "end;\n" +
+                    "return 0;\n" +
+                    "end;";
+
     @Resource
     private SeckillVouchersMapper seckillVouchersMapper;
     @Resource
     private VoucherOrdersMapper voucherOrdersMapper;
     @Resource
     private RedissonClient redissonClient;
-    @Resource
-    private RedisTemplate redisTemplate;
-
 
     // 添加代金券
     @Transactional(rollbackFor = Exception.class) // 事务是否回退
@@ -66,7 +65,8 @@ public class SeckillService {
         seckillVouchers.setIsValid(1);
         seckillVouchers.setCreateDate(new Date());
         seckillVouchers.setUpdateDate(new Date());
-        seckillVoucherMaps.put(redisKey, seckillVoucherMaps);
+        // 保存到redis上
+        seckillVoucherMaps.putAll(BeanUtil.beanToMap(seckillVouchers));
     }
 
     // 客户端抢代金券（基于Redis）
@@ -103,11 +103,10 @@ public class SeckillService {
             boolean isLock = lock.tryLock(expireTime, TimeUnit.MILLISECONDS);
             if (isLock) {
                 // ----------采用 Redid + Lua 解决问题 ----------
-                List<String> keys = new ArrayList<>();
+                List<Object> keys = new ArrayList<>();
                 keys.add(redisKey);
-                keys.add("amount");
-                Long amount = (Long) redisTemplate.execute(defaultRedisScript, keys);
-
+                keys.add("\"amount\"");
+                Long amount = redissonClient.getScript().eval(RScript.Mode.READ_ONLY, STOCK_SCRIPT, RScript.ReturnType.INTEGER, keys);
                 // 下单 这里没有加锁，因为是线程不安全的
                 VoucherOrders voucherOrders = new VoucherOrders();
                 voucherOrders.setFkDinerId(userId);
@@ -124,17 +123,9 @@ public class SeckillService {
             TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
             // 解锁
             lock.unlock();
+            e.printStackTrace();
         }
         return ResultInfoUtil.buildSuccess(path, "抢购成功");
-    }
-
-    @Bean
-    public DefaultRedisScript<Long> stockScript() {
-        DefaultRedisScript<Long> redisScript = new DefaultRedisScript<>();
-        //放在和application.yml 同层目录下
-        redisScript.setLocation(new ClassPathResource("stock.lua"));
-        redisScript.setResultType(Long.class);
-        return redisScript;
     }
 
 }

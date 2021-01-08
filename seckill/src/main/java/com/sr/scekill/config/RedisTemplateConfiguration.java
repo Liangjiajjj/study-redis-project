@@ -1,3 +1,4 @@
+/*
 package com.sr.scekill.config;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
@@ -13,12 +14,14 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 @Configuration
 public class RedisTemplateConfiguration {
 
-    /**
+    */
+/**
      * redisTemplate 序列化使用的jdkSerializeable, 存储二进制字节码, 所以自定义序列化类
      *
      * @param redisConnectionFactory
      * @return
-     */
+     *//*
+
     @Bean
     public RedisTemplate<Object, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
         RedisTemplate<Object, Object> redisTemplate = new RedisTemplate<>();
@@ -43,3 +46,4 @@ public class RedisTemplateConfiguration {
     }
 
 }
+*/

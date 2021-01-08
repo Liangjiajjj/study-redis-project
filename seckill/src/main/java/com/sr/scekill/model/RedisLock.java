@@ -1,3 +1,4 @@
+/*
 package com.sr.scekill.model;
 
 import lombok.Getter;
@@ -29,12 +30,14 @@ public class RedisLock {
         this.unlockScript.setScriptSource(new ResourceScriptSource(new ClassPathResource("unlock.lua")));
     }
 
-    /**
+    */
+/**
      * 获取锁
      * @param lockName 锁名称
      * @param releaseTime 超时时间(单位:秒)
      * @return key 解锁标识
-     */
+     *//*
+
     public String tryLock(String lockName, long releaseTime) {
         // 存入的线程信息的前缀，防止与其它JVM中线程信息冲突
         // 在数据库存的是一个hashs
@@ -56,11 +59,13 @@ public class RedisLock {
             return null;
         }
     }
-    /**
+    */
+/**
      * 释放锁
      * @param lockName 锁名称
      * @param key 解锁标识
-     */
+     *//*
+
     public void unlock(String lockName, String key) {
         // 执行脚本
         redisTemplate.execute(
@@ -69,3 +74,4 @@ public class RedisLock {
                 key + Thread.currentThread().getId(), null);
     }
 }
+*/

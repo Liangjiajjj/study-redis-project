@@ -1,3 +1,4 @@
+/*
 package com.sr.scekill.config;
 
 import com.sr.scekill.model.RedisLock;
@@ -18,4 +19,4 @@ public class RedisLockConfiguration {
         RedisLock redisLock = new RedisLock(redisTemplate);
         return redisLock;
     }
-}
+}*/
