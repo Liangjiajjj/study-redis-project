@@ -11,6 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.annotation.Resource;
 import javax.servlet.http.HttpServletRequest;
+import java.time.LocalDate;
+import java.util.Date;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 public class SeckillController {
@@ -33,6 +36,15 @@ public class SeckillController {
 
     @PostMapping("test")
     public void test() {
+    /*    SeckillVouchers seckillVouchers = new SeckillVouchers();
+        seckillVouchers.setId(1);
+        seckillVouchers.setAmount(10);
+        seckillVouchers.setIsValid(1);
+        seckillVouchers.setFkVoucherId(1);
+        seckillVouchers.setStartTime(new Date());
+        Date date = new Date(System.currentTimeMillis() + TimeUnit.DAYS.toMillis(2));
+        seckillVouchers.setEndTime(date);
+        seckillService.addSeckillVouchers(seckillVouchers);*/
         for (Integer i = 1; i <= 200; i++) {
             Thread thread = new Thread(() -> seckillService.doSeckill(1, 1, ""));
             thread.start();

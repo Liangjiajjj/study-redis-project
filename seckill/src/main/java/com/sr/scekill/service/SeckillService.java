@@ -2,6 +2,7 @@ package com.sr.scekill.service;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.IdUtil;
+import cn.hutool.core.util.StrUtil;
 import com.sr.commons.constant.RedisKeyConstant;
 import com.sr.commons.model.domain.ResultInfo;
 import com.sr.commons.model.pojo.SeckillVouchers;
@@ -10,18 +11,24 @@ import com.sr.commons.utils.AssertUtil;
 import com.sr.commons.utils.ResultInfoUtil;
 import com.sr.scekill.mapper.SeckillVouchersMapper;
 import com.sr.scekill.mapper.VoucherOrdersMapper;
+import com.sr.scekill.model.RedisLock;
+import org.redisson.api.RLock;
+import org.redisson.api.RMap;
+import org.redisson.api.RedissonClient;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.interceptor.TransactionAspectSupport;
 
 import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class SeckillService {
@@ -33,7 +40,10 @@ public class SeckillService {
     @Resource
     private VoucherOrdersMapper voucherOrdersMapper;
     @Resource
+    private RedissonClient redissonClient;
+    @Resource
     private RedisTemplate redisTemplate;
+
 
     // 添加代金券
     @Transactional(rollbackFor = Exception.class) // 事务是否回退
@@ -50,15 +60,13 @@ public class SeckillService {
 
         // 是否已经有秒杀活动
         String redisKey = RedisKeyConstant.seckill_vouchers.getKey() + seckillVouchers.getFkVoucherId();
-        Map<String, Object> seckillVoucherMaps = redisTemplate.opsForHash().entries(redisKey);
+        RMap<Object, Object> seckillVoucherMaps = redissonClient.getMap(redisKey);
         AssertUtil.isTrue(!seckillVoucherMaps.isEmpty() && (int) seckillVoucherMaps.get("amount") > 0, "该卷已经拥有了活动");
-
         // 同步到redis上面
         seckillVouchers.setIsValid(1);
         seckillVouchers.setCreateDate(new Date());
         seckillVouchers.setUpdateDate(new Date());
-        seckillVoucherMaps = BeanUtil.beanToMap(seckillVouchers);
-        redisTemplate.opsForHash().putAll(redisKey, seckillVoucherMaps);
+        seckillVoucherMaps.put(redisKey, seckillVoucherMaps);
     }
 
     // 客户端抢代金券（基于Redis）
@@ -68,7 +76,7 @@ public class SeckillService {
         AssertUtil.isTrue(voucherId == null || voucherId < 0, "请选择需要抢购的代金券");
         // 判断此代金券是否加入抢购
         String redisKey = RedisKeyConstant.seckill_vouchers.getKey() + voucherId;
-        Map<String, Object> seckillVoucherMaps = redisTemplate.opsForHash().entries(redisKey);
+        RMap<Object, Object> seckillVoucherMaps = redissonClient.getMap(redisKey);
         SeckillVouchers seckillVouchers = BeanUtil.mapToBean(seckillVoucherMaps, SeckillVouchers.class, true, null);
         AssertUtil.isTrue(seckillVouchers == null, "该代金券并未有抢购活动");
         // 判断是否有效
@@ -85,22 +93,38 @@ public class SeckillService {
         VoucherOrders order = voucherOrdersMapper.findDinerOrder(userId,
                 seckillVouchers.getFkVoucherId());
         AssertUtil.isTrue(order != null, "该用户已抢到该代金券，无需再抢");
-        // ----------采用 Redid + Lua 解决问题 ----------
-        List<String> keys = new ArrayList<>();
-        keys.add(redisKey);
-        keys.add("amount");
-        Long amount = (Long) redisTemplate.execute(defaultRedisScript, keys);
 
-        // 下单 这里没有加锁，因为是线程不安全的
-        VoucherOrders voucherOrders = new VoucherOrders();
-        voucherOrders.setFkDinerId(userId);
-        voucherOrders.setFkVoucherId(seckillVouchers.getFkVoucherId());
-        String orderNo = IdUtil.getSnowflake(1, 1).nextIdStr();
-        voucherOrders.setOrderNo(orderNo);
-        voucherOrders.setOrderType(1);
-        voucherOrders.setStatus(0);
-        amount = (long) voucherOrdersMapper.save(voucherOrders);
-        AssertUtil.isTrue(amount == 0, "用户抢购失败");
+        // 使用 redis锁一个账号只能买一个
+        String lockName = RedisKeyConstant.lock_key.getKey() + userId + ":" + voucherId;
+        long expireTime = seckillVouchers.getEndTime().getTime() - now.getTime();
+        // 锁
+        RLock lock = redissonClient.getLock(lockName);
+        try {
+            boolean isLock = lock.tryLock(expireTime, TimeUnit.MILLISECONDS);
+            if (isLock) {
+                // ----------采用 Redid + Lua 解决问题 ----------
+                List<String> keys = new ArrayList<>();
+                keys.add(redisKey);
+                keys.add("amount");
+                Long amount = (Long) redisTemplate.execute(defaultRedisScript, keys);
+
+                // 下单 这里没有加锁，因为是线程不安全的
+                VoucherOrders voucherOrders = new VoucherOrders();
+                voucherOrders.setFkDinerId(userId);
+                voucherOrders.setFkVoucherId(seckillVouchers.getFkVoucherId());
+                String orderNo = IdUtil.getSnowflake(1, 1).nextIdStr();
+                voucherOrders.setOrderNo(orderNo);
+                voucherOrders.setOrderType(1);
+                voucherOrders.setStatus(0);
+                amount = (long) voucherOrdersMapper.save(voucherOrders);
+                AssertUtil.isTrue(amount == 0, "用户抢购失败");
+            }
+        } catch (Exception e) {
+            // 手动回滚事务
+            TransactionAspectSupport.currentTransactionStatus().setRollbackOnly();
+            // 解锁
+            lock.unlock();
+        }
         return ResultInfoUtil.buildSuccess(path, "抢购成功");
     }
 
