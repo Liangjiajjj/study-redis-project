@@ -7,6 +7,7 @@ import com.sr.commons.model.domain.ResultInfo;
 import com.sr.commons.model.pojo.SeckillVouchers;
 import com.sr.commons.model.pojo.VoucherOrders;
 import com.sr.commons.utils.AssertUtil;
+import com.sr.commons.utils.RedisScript;
 import com.sr.commons.utils.ResultInfoUtil;
 import com.sr.scekill.mapper.SeckillVouchersMapper;
 import com.sr.scekill.mapper.VoucherOrdersMapper;
@@ -25,17 +26,6 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 public class SeckillService {
-
-    // 扣库存脚本
-    private static final String STOCK_SCRIPT =
-            "if (redis.call('hexists', KEYS[1], KEYS[2]) == 1) then\n" +
-                    "local stock = tonumber(redis.call('hget', KEYS[1], KEYS[2]));\n" +
-                    "if (stock > 0) then\n" +
-                    " redis.call('hincrby', KEYS[1], KEYS[2], -1);\n" +
-                    "return stock;\n" +
-                    "end;\n" +
-                    "return 0;\n" +
-                    "end;";
 
     @Resource
     private SeckillVouchersMapper seckillVouchersMapper;
@@ -106,7 +96,7 @@ public class SeckillService {
                 List<Object> keys = new ArrayList<>();
                 keys.add(redisKey);
                 keys.add("\"amount\"");
-                Long amount = redissonClient.getScript().eval(RScript.Mode.READ_ONLY, STOCK_SCRIPT, RScript.ReturnType.INTEGER, keys);
+                Long amount = redissonClient.getScript().eval(RScript.Mode.READ_ONLY, RedisScript.STOCK_SCRIPT, RScript.ReturnType.INTEGER, keys);
                 // 下单 这里没有加锁，因为是线程不安全的
                 VoucherOrders voucherOrders = new VoucherOrders();
                 voucherOrders.setFkDinerId(userId);

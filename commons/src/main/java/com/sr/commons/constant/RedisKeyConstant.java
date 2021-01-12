@@ -13,6 +13,10 @@ public enum RedisKeyConstant {
     following_feeds("following_feeds:", "我关注的好友的FeedsKey"),
     diner_points("diner:points", "diner用户的积分Key"),
     diner_location("diner:location", "diner地理位置Key"),
+
+    luck_money_list("luck_money_list:", "小红包队列"),
+    luck_money_consumed_list("luck_money_consumed_list:", "小红包消费队列"),
+    luck_money_consumed_map("luck_money_consumed_map", "红包用户列表"),
     ;
 
     private String key;
