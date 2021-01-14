@@ -58,9 +58,8 @@ public class LuckMoneyService {
         keys.add(userId);
 
         // 异步调用脚本
-        RFuture<Object> rFuture = redissonClient.getScript().evalAsync(RScript.Mode.READ_ONLY, RedisScript.TAKE_LUCK_MONEY_SCRIPT, RScript.ReturnType.VALUE, keys);
-        rFuture.onComplete((o, throwable) -> {
-            LuckMoneyInfo info = (LuckMoneyInfo) o;
+        RFuture<LuckMoneyInfo> rFuture = redissonClient.getScript().evalAsync(RScript.Mode.READ_ONLY, RedisScript.TAKE_LUCK_MONEY_SCRIPT, RScript.ReturnType.VALUE, keys);
+        rFuture.onComplete((info, throwable) -> {
             AssertUtil.isTrue(info == null, "未抢到红包");
 
             // 判断条件
