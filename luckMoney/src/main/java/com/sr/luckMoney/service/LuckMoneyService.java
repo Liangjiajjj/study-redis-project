@@ -1,6 +1,7 @@
 package com.sr.luckMoney.service;
 
 import com.sr.commons.constant.RedisKeyConstant;
+import com.sr.commons.model.pojo.LuckMoney;
 import com.sr.commons.model.pojo.LuckMoneyInfo;
 import com.sr.commons.utils.AssertUtil;
 import com.sr.commons.utils.RedisScript;
@@ -11,6 +12,7 @@ import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
+
 import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.Date;
@@ -54,16 +56,20 @@ public class LuckMoneyService {
         keys.add(luck_money_consumed_list_key);
         keys.add(luck_money_consumed_map_key);
         keys.add(userId);
-        // 调用脚本
-        RFuture<LuckMoneyInfo> future = redissonClient.getScript().evalAsync(RScript.Mode.READ_ONLY, RedisScript.TAKE_LUCK_MONEY_SCRIPT, RScript.ReturnType.VALUE, keys);
-        future.onComplete(((info, throwable) -> {
+
+        // 异步调用脚本
+        RFuture<Object> rFuture = redissonClient.getScript().evalAsync(RScript.Mode.READ_ONLY, RedisScript.TAKE_LUCK_MONEY_SCRIPT, RScript.ReturnType.VALUE, keys);
+        rFuture.onComplete((o, throwable) -> {
+            LuckMoneyInfo info = (LuckMoneyInfo) o;
             AssertUtil.isTrue(info == null, "未抢到红包");
+
             // 判断条件
             Date now = new Date();
             AssertUtil.isTrue(now.after(info.getEndTime()), "该抢购已结束");
             // 入库 ...
             // 发奖 ...
-        }));
+        });
+
     }
 
 

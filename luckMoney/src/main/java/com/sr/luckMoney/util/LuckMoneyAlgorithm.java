@@ -1,6 +1,5 @@
 package com.sr.luckMoney.util;
 
-import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class LuckMoneyAlgorithm {

@@ -3,6 +3,7 @@ package com.sr.luckMoney.controller;
 import com.sr.luckMoney.service.LuckMoneyService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
+
 import javax.annotation.Resource;
 
 @RestController
@@ -22,6 +23,6 @@ public class LuckMoneyController {
 
     @PostMapping("test")
     public void test() {
-
+        service.takeLuckMoney(1, 2);
     }
 }
