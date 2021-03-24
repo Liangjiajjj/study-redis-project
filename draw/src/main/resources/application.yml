@@ -1,0 +1,25 @@
+server:
+  port: 8084 # 端口
+
+spring:
+  application:
+    name: ms-draw # 应用名
+  # 数据库
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: root
+    url: jdbc:mysql://127.0.0.1:3306/redis_study?serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true&useSSL=false
+
+# 配置 Eureka Server 注册中心 先不用
+
+
+mybatis:
+  configuration:
+    map-underscore-to-camel-case: true # 开启驼峰映射
+
+logging:
+  pattern:
+    console: '%d{HH:mm:ss} [%thread] %-5level %logger{50} - %msg%n'
+  level:
+    root: debug

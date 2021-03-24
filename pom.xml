@@ -12,6 +12,7 @@
         <module>seckill</module>
         <module>commons</module>
         <module>luckMoney</module>
+        <module>draw</module>
     </modules>
 
     <!-- 可以集中定义依赖资源的版本信息 -->

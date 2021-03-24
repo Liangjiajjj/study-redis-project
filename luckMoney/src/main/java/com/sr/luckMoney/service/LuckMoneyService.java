@@ -6,10 +6,7 @@ import com.sr.commons.model.pojo.LuckMoneyInfo;
 import com.sr.commons.utils.AssertUtil;
 import com.sr.commons.utils.RedisScript;
 import com.sr.luckMoney.util.LuckMoneyAlgorithm;
-import org.redisson.api.RFuture;
-import org.redisson.api.RQueue;
-import org.redisson.api.RScript;
-import org.redisson.api.RedissonClient;
+import org.redisson.api.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
@@ -21,6 +18,8 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 public class LuckMoneyService {
+
+
     @Resource
     private RedissonClient redissonClient;
 
@@ -44,6 +43,8 @@ public class LuckMoneyService {
 
     // 抢红包
     public void takeLuckMoney(int luckMoneyId, int userId) {
+        RMapCache<String,Integer> map = redissonClient.getMapCache("myMap");
+
         // 未消费列表
         String luck_money_list_key = RedisKeyConstant.luck_money_list.getKey() + ":" + luckMoneyId;
         // 已消费列表
@@ -58,7 +59,7 @@ public class LuckMoneyService {
         keys.add(userId);
 
         // 异步调用脚本
-        RFuture<LuckMoneyInfo> rFuture = redissonClient.getScript().evalAsync(RScript.Mode.READ_ONLY, RedisScript.TAKE_LUCK_MONEY_SCRIPT, RScript.ReturnType.VALUE, keys);
+        RFuture<LuckMoneyInfo> rFuture = redissonClient.getScript().evalAsync(RScript.Mode.READ_WRITE, RedisScript.TAKE_LUCK_MONEY_SCRIPT, RScript.ReturnType.VALUE, keys);
         rFuture.onComplete((info, throwable) -> {
             AssertUtil.isTrue(info == null, "未抢到红包");
 
