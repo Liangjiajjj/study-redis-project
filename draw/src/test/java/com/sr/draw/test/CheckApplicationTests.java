@@ -4,13 +4,16 @@ import com.sr.commons.expand.RLocalCachedQueue;
 import com.sr.commons.utils.RedisScript;
 import draw.DrawApplication;
 import draw.model.Result;
+import draw.service.DrawService;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import javax.annotation.Resource;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Vector;
 
 @SpringBootTest(classes = DrawApplication.class)
 public class CheckApplicationTests {
@@ -52,12 +55,12 @@ public class CheckApplicationTests {
      */
     private LocalCachedMapOptions options = LocalCachedMapOptions.defaults();
 
-    private LocalCachedMapOptions update_options = LocalCachedMapOptions.defaults().syncStrategy(LocalCachedMapOptions.SyncStrategy.UPDATE);
-
 
     @Resource
     private RedissonClient client;
 
+    @Autowired
+    private DrawService drawService;
 
     /**
      * Redisson错误示范1，在异步RFuture里面用同步方法
@@ -180,13 +183,11 @@ public class CheckApplicationTests {
         client.getScript().evalAsync(RScript.Mode.READ_ONLY, RedisScript.STOCK_SCRIPT, RScript.ReturnType.INTEGER, keys);
     }
 
-    /**
-     * 使用锁 + 缓存map
-     */
+
     @Test
     public void redisLockTest() {
-        RLocalCachedMap<Integer, Integer> map = client.getLocalCachedMap("test", update_options);
         RLock lock = client.getLock("testLock");
+        RLocalCachedMap<Integer, Integer> map = drawService.getMap();
         boolean isLock = lock.tryLock();
         if (isLock) {
             try {
@@ -210,7 +211,7 @@ public class CheckApplicationTests {
      */
     @Test
     public void redisAddAndGetTest() {
-        // RLocalCachedMap<Integer, Integer> map = client.getLocalCachedMap("test", update_options);
+        // RLocalCachedMap<Integer, Integer> map = drawService.getMap();
         RMap<Integer, Integer> map = client.getMap("test");
         for (int i = 0; i < 1000; i++) {
             // 先加后判断，保持原子性操作
@@ -223,5 +224,21 @@ public class CheckApplicationTests {
             // 中间操作异步执行了~
         }
         // 在真正获取这个物品的时候才加回去
+    }
+
+    @Test
+    public void testThread() throws InterruptedException {
+        long sTime = System.currentTimeMillis();
+        Vector<Thread> vector = new Vector<>();
+        for (int i = 0; i < 100; i++) {
+            Thread thread = new Thread(() -> redisAddAndGetTest());
+            vector.add(thread);
+            thread.start();
+        }
+        for (Thread thread : vector) {
+            thread.join();
+        }
+        long eTime = System.currentTimeMillis();
+        System.out.println("总耗时：" + (eTime - sTime));
     }
 }
