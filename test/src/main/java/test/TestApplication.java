@@ -1,9 +1,11 @@
-package draw;
+package test;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+
 @SpringBootApplication
-public class DrawApplication {
+// @MapperScan("com.sr.scekill.mapper")
+public class TestApplication {
     public static void main(String[] args) {
-        SpringApplication.run(DrawApplication.class);
+        SpringApplication.run(TestApplication.class);
     }
 }
